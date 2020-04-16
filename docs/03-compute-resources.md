@@ -34,15 +34,7 @@ We are going to create a new virtual network to place all the Kubernetes cluster
 * Name of the network is k8s-net
 * The domain of this network is k8s-thw.local. This is important since all VMs in this virtual network will get this domain name as part of its fully qualified name.
 
-```
-kcli create network -c 192.168.111.0/24 k8s-net --domain k8s-thw.local
-```
-
-Output expected:
-
-```
-Network k8s-net deployed
-```
+![define network](images/define_network.png)
 
 Check the list of virtual networks available:
 
@@ -62,7 +54,8 @@ Listing Networks...
 To be able to create instances, an image should be provided. In this guide we will use CentOS 7 as the base operating system for all the VMs. With kcli this is super easy, just download the cloud CentOS 7 image with kcli command line:
 
 ```
-kcli download image centos7 --pool default
+host# cd /var/lib/libvirt/images
+host# wget https://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud.qcow2
 ```
 
 > Basically kcli is donwloading the latest CentOS 7 cloud image and placing it in the default pool we already defined  (/var/lib/libvirt/images/)
