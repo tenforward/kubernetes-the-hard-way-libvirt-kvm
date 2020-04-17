@@ -16,16 +16,14 @@ The VM network is a network where all the VMs are executed. Actually this is a v
 
 By default as commented in the previous sections, there is a default virtual network named as default configured:
 ```
-kcli list network
+$ virsh net-list
 ```
 Output expected
 
 ```
-----+------------------+------+---------+------+
-| Network |  Type  |       Cidr       | Dhcp |  Domain | Mode |
-+---------+--------+------------------+------+---------+------+
-| default | routed | 192.168.122.0/24 | True | default | nat  |
-+---------+--------+------------------+------+---------+------+
+ 名前               状態     自動起動  永続
+----------------------------------------------------------
+ default              動作中  いいえ (no) いいえ (no)
 ```
 
 We are going to create a new virtual network to place all the Kubernetes cluster resources:
@@ -39,27 +37,21 @@ We are going to create a new virtual network to place all the Kubernetes cluster
 Check the list of virtual networks available:
 
 ```
-# kcli list network
-Listing Networks...
-+---------+--------+------------------+------+---------------+------+
-| Network |  Type  |       Cidr       | Dhcp |     Domain    | Mode |
-+---------+--------+------------------+------+---------------+------+
-| default | routed | 192.168.122.0/24 | True |    default    | nat  |
-| k8s-net | routed | 192.168.111.0/24 | True | k8s-thw.local | nat  |
-+---------+--------+------------------+------+---------------+------+
+$ virsh net-list 
+ 名前               状態     自動起動  永続
+----------------------------------------------------------
+ default            動作中  いいえ (no) いいえ (no)
+ k8s-net            動作中  はい (yes)  はい (yes)
 ```
 
 ## Images
 
-To be able to create instances, an image should be provided. In this guide we will use CentOS 7 as the base operating system for all the VMs. With kcli this is super easy, just download the cloud CentOS 7 image with kcli command line:
+To be able to create instances, an image should be provided. In this guide we will use CentOS 7 as the base operating system for all the VMs. We download the CentOS 7 image from mirror site, for example:
 
 ```
-host# cd /var/lib/libvirt/images
-host# wget https://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud.qcow2
+vmhost# cd (libvirt stroage directory, for example: /var/lib/libvirt/storage)
+vmhost# wget http://ftp.jaist.ac.jp/pub/Linux/CentOS/7/isos/x86_64/CentOS-7-x86_64-NetInstall-1908.iso
 ```
-
-> Basically kcli is donwloading the latest CentOS 7 cloud image and placing it in the default pool we already defined  (/var/lib/libvirt/images/)
-
 
 ## DNS
 
@@ -82,32 +74,154 @@ Each compute instance will be provisioned with a fixed private IP address to sim
 Create three compute instances which will host the Kubernetes **control plane**. Basically we are creating 3 new instances configured with:
 
 - CentOS image as OS
-- 50 GB disk
+- 16 GB disk
 - Connected to the k8s-net (192.168.111.0/24)
-- 16GB of memory and 4 vCPus
-- Create a DNS record, in this case ${node}.k8s-thw.local which will included in libvirt's dnsmasq (reservedns=yes)
-- Reserve the IP, so it is not available to any other VM (reserveip=yes)
-- Create an record into baremetal server's /etc/host so it can be reached from outside the virtual network domain as well. (reserveip=yes)
+- 16GB of memory and 1 vCPus
+- Create a DNS record, in this case ${node}.k8s-thw.local which will included in libvirt's dnsmasq
+- Reserve the IP, so it is not available to any other VM
+- Create an record into baremetal server's /etc/host so it can be reached from outside the virtual network domain as well.
 - Execute "yum update -y" once the server is up and running. This command is injected into the cloudinit, so all instances are up to date since the very beginning.
 
+#### Create VMs
+
+We create VMs using virt-manager's UI.
+
+![create vm 1](images/createvm01.png)
+
+and clone VMs from master00 to master01,02.
+
+![clone_vm](images/clonevm01.png)
+
+After complete clone, You should change hostname to master0{1,2} on each host.
+
 ```
-# for node in master00 master01 master02; do
- 	kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 \
-        -P cmds=["yum -y update"] -P reservedns=yes -P reserveip=yes -P reservehost=yes ${node}
-done
+$ sudo hostnamectl set-hostname master01.k8s-thw.local
 ```
 
 Verify your masters are up and running
 
 ```
-[root@smc-master k8s-th]# kcli list vm
-+--------------+--------+-----------------+------------------------------------+-------+---------+--------+
-|     Name     | Status |       Ips       |               Source               |  Plan | Profile | Report |
-+--------------+--------+-----------------+------------------------------------+-------+---------+--------+
-|   master00   |   up   |  192.168.111.72 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   master01   |   up   | 192.168.111.173 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   master02   |   up   | 192.168.111.230 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-+--------------+--------+-----------------+------------------------------------+-------+---------+--------+
+vmhost$ virsh list
+ Id    名前                         状態
+----------------------------------------------------
+ 5     master01                       実行中
+ 6     master02                       実行中
+ 7     master00                       実行中
+
+$ virsh net-dhcp-leases k8s-net
+ Expiry Time          MAC アドレス   Protocol  IP address                Hostname        Client ID or DUID
+-------------------------------------------------------------------------------------------------------------------
+ 2020-04-17 14:15:34  52:54:00:5e:53:fb  ipv4      192.168.111.150/24        master00        -
+ 2020-04-17 14:14:57  52:54:00:b5:06:ff  ipv4      192.168.111.135/24        master01        -
+ 2020-04-17 14:14:20  52:54:00:bb:7b:85  ipv4      192.168.111.147/24        master02        -
+```
+
+#### Assign fixed IP addresses to each master
+
+We use `virsh net-edit` command,
+
+```
+vmhost$ virsh net-edit k8s-net
+```
+
+then open your editor,
+
+```
+<network>
+  <name>k8s-net</name>
+  <uuid>231ecaaa-88ab-4c38-b955-c91b1dff203b</uuid>
+  <forward dev='eth0' mode='nat'>
+    <interface dev='eth0'/>
+  </forward>
+  <bridge name='virbr1' stp='on' delay='0'/>
+  <mac address='52:54:00:06:ec:15'/>
+  <domain name='k8s-thw.local'/>
+  <ip address='192.168.111.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.111.8' end='192.168.111.254'/>
+	  <host mac='52:54:00:5e:53:fb' name='master00.k8s-thw.local' ip='192.168.111.150'/> (<- Append!!)
+      <host mac='52:54:00:b5:06:ff' name='master01.k8s-thw.local' ip='192.168.111.135'/> (<- Append!!)
+ 	  <host mac='52:54:00:bb:7b:85' name='master02.k8s-thw.local' ip='192.168.111.147'/> (<- Append!!)
+    </dhcp>
+  </ip>
+</network>
+```
+
+and restart `k8s-net`:
+
+```
+vmhost$ virsh net-destroy k8s-net
+ネットワーク k8s-net は強制停止されました
+
+vmhost$ virsh net-start k8s-net
+ネットワーク k8s-net が起動されました
+
+vmhost$ virsh net-dumpxml k8s-net
+<network>
+  <name>k8s-net</name>
+  <uuid>231ecaaa-88ab-4c38-b955-c91b1dff203b</uuid>
+  <forward dev='eth0' mode='nat'>
+    <nat>
+      <port start='1024' end='65535'/>
+    </nat>
+    <interface dev='eth0'/>
+  </forward>
+  <bridge name='virbr1' stp='on' delay='0'/>
+  <mac address='52:54:00:06:ec:15'/>
+  <domain name='k8s-thw.local'/>
+  <ip address='192.168.111.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.111.8' end='192.168.111.254'/>
+      <host mac='52:54:00:5e:53:fb' name='master00.k8s-thw.local' ip='192.168.111.150'/>
+      <host mac='52:54:00:5e:53:fb' name='master01.k8s-thw.local' ip='192.168.111.135'/>
+      <host mac='52:54:00:5e:53:fb' name='master02.k8s-thw.local' ip='192.168.111.147'/>
+    </dhcp>
+  </ip>
+</network>
+```
+
+If VMs is running, then you have to restart.
+
+#### register dns host entry to dnsmasq
+
+We use `virsh net-edit` again,
+
+```
+$ virsh net-edit k8s-net
+```
+
+then,
+
+```
+<network>
+  <name>k8s-net</name>
+  <uuid>231ecaaa-88ab-4c38-b955-c91b1dff203b</uuid>
+  <forward dev='eth0' mode='nat'>
+    <interface dev='eth0'/>
+  </forward>
+  <bridge name='virbr1' stp='on' delay='0'/>
+  <mac address='52:54:00:06:ec:15'/>
+  <domain name='k8s-thw.local'/>
+  <dns>
+    <host ip='192.168.111.150'>
+      <hostname>master00.k8s-thw.local</hostname>
+    </host>
+    <host ip='192.168.111.135'>
+      <hostname>master01.k8s-thw.local</hostname>
+    </host>
+    <host ip='192.168.111.147'>
+      <hostname>master02.k8s-thw.local</hostname>
+    </host>
+  </dns>
+  <ip address='192.168.111.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.111.8' end='192.168.111.254'/>
+      <host mac='52:54:00:5e:53:fb' name='master00.k8s-thw.local' ip='192.168.111.150'/>
+      <host mac='52:54:00:b5:06:ff' name='master01.k8s-thw.local' ip='192.168.111.135'/>
+      <host mac='52:54:00:bb:7b:85' name='master02.k8s-thw.local' ip='192.168.111.147'/>
+    </dhcp>
+  </ip>
+</network>
 ```
 
 ### Load Balancer
