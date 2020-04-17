@@ -15,13 +15,11 @@ During this tutorial I am about to configure a high availability Kubernetes clus
 
 |  VM Name      | Purpose    |   OS     | vCPUs | Memory | Disk  |
 | ------------- | ---------- | ---------|-------|--------|-------|
-| master00      | controller | CentOS 7 |   4   |  16 GB | 50 GB |
-| master01      | controller | CentOS 7 |   4   |  16 GB | 50 GB |
-| master02      | controller | CentOS 7 |   4   |  16 GB | 50 GB |
-| worker00      | controller | CentOS 7 |   4   |  16 GB | 50 GB |
-| worker01      | controller | CentOS 7 |   4   |  16 GB | 50 GB |
-| worker02      | controller | CentOS 7 |   4   |  16 GB | 50 GB |
-| loadbalancer  | balancer   | CentOS 7 |   2   |  2 GB  | 20 GB |
+| master00      | controller | CentOS 7 |   1   |  2 GB  | 16 GB |
+| master01      | controller | CentOS 7 |   1   |  2 GB  | 16 GB |
+| master02      | controller | CentOS 7 |   1   |  2 GB  | 16 GB |
+| worker00      | controller | CentOS 7 |   1   |  2 GB  | 16 GB |
+| loadbalancer  | balancer   | CentOS 7 |   1   |  2 GB  | 16 GB |
 
 - Ansible (optional)
 
