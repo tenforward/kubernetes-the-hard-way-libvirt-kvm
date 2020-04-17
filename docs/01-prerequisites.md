@@ -49,6 +49,7 @@ In order to deploy all the virtual devices needed to run the infrastructure we c
 
 However, I find much easier to use [kcli](https://kcli.readthedocs.io/en/master/) to deploy my virtual infrastructure.  **Kcli** is a tool meant to interact with existing virtualization providers (libvirt, kubevirt, ovirt, openstack, gcp and aws, vsphere) and to easily deploy and customize vms from cloud images. You can also interact with those vms (list, info, ssh, start, stop, delete, console, serialconsole, add/delete disk, add/delete nic,…). Futhermore, you can deploy vms using predefined profiles, several at once using plan files or entire products for which plans were already created for you.
 
+However, on our environment, some `kcli` commands failed, so we use `virsh` and `virt-manager` instead.
 
 ### Install kcli
 
@@ -139,16 +140,12 @@ Network: default Type: routed Cidr: 192.168.122.0/24 Dhcp: True
 
 > Note that there is a default network already configured when installing libvirt called default (192.168.122.0/24)
 
-## Running Commands in Parallel with tmux
+## Running Commands in Parallel with ansible
 
-[tmux](https://github.com/tmux/tmux/wiki) can be used to run commands on multiple compute instances at the same time. Labs in this tutorial may require running the same commands across multiple compute instances, in those cases consider using tmux and splitting a window into multiple panes with `synchronize-panes` enabled to speed up the provisioning process.
+The original document used tmux to run commands in parallel on multiple instances. But we use ansible.
 
-> The use of tmux is optional and not required to complete this tutorial.
-
-![tmux screenshot](images/tmux-screenshot.png)
-
-> Enable synchronize-panes by pressing `ctrl+b` followed by `shift+:`. Next type `set synchronize-panes on` at the prompt. To disable synchronization: `set synchronize-panes off`.
-
-> There are other options, the most remarkable in my opinion is [terminator](https://terminator-gtk3.readthedocs.io/en/latest/) which I use a lot.
+```
+vmhost$ pip3 install ansible --user
+```
 
 Next: [Installing the Client Tools](02-client-tools.md)
