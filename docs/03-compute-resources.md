@@ -142,6 +142,7 @@ then open your editor,
 	  <host mac='52:54:00:5e:53:fb' name='master00.k8s-thw.local' ip='192.168.111.150'/> (<- Append!!)
       <host mac='52:54:00:b5:06:ff' name='master01.k8s-thw.local' ip='192.168.111.135'/> (<- Append!!)
  	  <host mac='52:54:00:bb:7b:85' name='master02.k8s-thw.local' ip='192.168.111.147'/> (<- Append!!)
+      <host mac='52:54:00:5f:a2:ef' name='loadbalancer.k8s-thw.local' ip='192.168.111.248'/> (<- Append!!)
     </dhcp>
   </ip>
 </network>
@@ -201,6 +202,7 @@ then,
   </forward>
   <bridge name='virbr1' stp='on' delay='0'/>
   <mac address='52:54:00:06:ec:15'/>
+  <!-- Append from here -->
   <domain name='k8s-thw.local'/>
   <dns>
     <host ip='192.168.111.150'>
@@ -212,7 +214,11 @@ then,
     <host ip='192.168.111.147'>
       <hostname>master02.k8s-thw.local</hostname>
     </host>
+    <host ip='192.168.111.248'>
+      <hostname>loadbalancer.k8s-thw.local</hostname>
+    </host>
   </dns>
+  <!-- Append to here -->
   <ip address='192.168.111.1' netmask='255.255.255.0'>
     <dhcp>
       <range start='192.168.111.8' end='192.168.111.254'/>
