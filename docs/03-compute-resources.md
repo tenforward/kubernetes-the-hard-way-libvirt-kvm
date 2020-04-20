@@ -256,19 +256,50 @@ kcli list vm
 
 The following steps shows how to install a load balancer service using HAProxy in the instance previously created.
 
-First, connect to the instance:
+We install and configure using ansible.
+
+First, add loadbalancer entry to ansible hosts file:
 
 ```
-kcli ssh loadbalancer
+[lb]
+loadbalancer.k8s-thw.local
 ```
 
-Install and configure HAProxy:
+then create playbook:
 
 ```
-# export DOMAIN="k8s-thw.local"
-# yum install -y haproxy
+$ cat 01_lb_haproxy.yaml 
+- hosts: lb
+  become: yes
+  become_user: root
+  tasks:
+    - name: install haproxy
+      yum:
+        name:
+          - haproxy
+          - policycoreutils-python
+        state: present
+    - name: place haproxy.cfg
+      copy:
+        src: ./files/haproxy.cfg
+        dest: /etc/haproxy/haproxy.cfg
+        owner: root
+        group: root
+        mode: 0644
+    - name: tweak selinux for haproxy
+      command: semanage port --add --type http_port_t --proto tcp 6443
+    - name: verify haproxy config
+      command: haproxy -c -V -f /etc/haproxy/haproxy.cfg
+    - name: enable haproxy
+      systemd:
+        daemon_reload: yes
+        name: haproxy
+        state: restarted
+```
 
-# tee /etc/haproxy/haproxy.cfg << EOF
+Here, `haproxy.cfg` is a file as follows:
+
+```
 global
     log         127.0.0.1 local2
     chroot      /var/lib/haproxy
@@ -311,29 +342,28 @@ backend mgmt6443
     balance source
     mode tcp
     # MASTERS 6443
-    server master00.${DOMAIN} 192.168.111.72:6443 check
-    server master01.${DOMAIN} 192.168.111.173:6443 check
-    server master02.${DOMAIN} 192.168.111.230:6443 check
-EOF
+    server master00.k8s-thw.local 192.168.111.72:6443 check
+    server master01.k8s-thw.local 192.168.111.173:6443 check
+    server master02.k8s-thw.local 192.168.111.230:6443 check
 ```
 
-As the Kubernetes port is 6443, the selinux policy should be modified to allow
-haproxy to listen on that particular port:
+then, run `ansible-playbook`:
 
 ```
-sudo semanage port --add --type http_port_t --proto tcp 6443
-```
+$ ansible-playbook 01_lb_haproxy.yaml
+$ ansible lb -a "systemctl status haproxy"
+loadbalancer.k8s-thw.local | CHANGED | rc=0 >>
+● haproxy.service - HAProxy Load Balancer
+   Loaded: loaded (/usr/lib/systemd/system/haproxy.service; disabled; vendor preset: disabled)
+   Active: active (running) since Mon 2020-04-20 20:50:47 JST; 5min ago
+ Main PID: 3056 (haproxy-systemd)
+   CGroup: /system.slice/haproxy.service
+           ├─3056 /usr/sbin/haproxy-systemd-wrapper -f /etc/haproxy/haproxy.cfg -p /run/haproxy.pid
+           ├─3058 /usr/sbin/haproxy -f /etc/haproxy/haproxy.cfg -p /run/haproxy.pid -Ds
+           └─3059 /usr/sbin/haproxy -f /etc/haproxy/haproxy.cfg -p /run/haproxy.pid -Ds
 
-Verify everything is properly configured:
-
-```
-haproxy -c -V -f /etc/haproxy/haproxy.cfg
-```
-
-Start and enable the service
-
-```
-sudo systemctl enable haproxy --now
+Apr 20 20:50:47 loadbalancer.k8s-thw.local systemd[1]: Started HAProxy Load Balancer.
+Apr 20 20:50:47 loadbalancer.k8s-thw.local haproxy-systemd-wrapper[3056]: haproxy-systemd-wrapper: executing /usr/sbin/haproxy -f /etc/haproxy/haproxy.cfg -p /run/haproxy.pid -Ds
 ```
 
 
