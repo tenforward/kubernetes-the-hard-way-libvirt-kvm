@@ -1,0 +1,26 @@
+- hosts: lb
+  become: yes
+  become_user: root
+  tasks:
+    - name: install haproxy
+      yum:
+        name:
+          - haproxy
+          - policycoreutils-python
+        state: present
+    - name: place haproxy.cfg
+      copy:
+        src: ./files/haproxy.cfg
+        dest: /etc/haproxy/haproxy.cfg
+        owner: root
+        group: root
+        mode: 0644
+    - name: tweak selinux for haproxy
+      command: semanage port --add --type http_port_t --proto tcp 6443
+    - name: verify haproxy config
+      command: haproxy -c -V -f /etc/haproxy/haproxy.cfg
+    - name: enable haproxy
+      systemd:
+        daemon_reload: yes
+        name: haproxy
+        state: restarted
