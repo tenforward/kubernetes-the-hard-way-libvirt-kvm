@@ -567,19 +567,12 @@ PING loadbalancer.k8s-thw.local (192.168.111.248) 56(84) bytes of data.
 rtt min/avg/max/mdev = 0.192/0.226/0.255/0.028 ms
 ```
 
-## Reboot
+## update pacakges 
 
-Finally, since all packages were updated during the bootstrap of the instance. we must reboot to run the latest ones
+Finally, we update all packages on all hosts.
 
 ```
-for node in loadbalancer master00 master01 master02 worker00
-do
-	virsh shutdown $node
-done
-for node in loadbalancer master00 master01 master02 worker00
-do
-	virsh start $node
-done
+$ ansible all -a "sudo yum -y update"
 ```
 
 
