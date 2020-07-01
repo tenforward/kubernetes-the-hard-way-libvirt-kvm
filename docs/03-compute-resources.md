@@ -369,7 +369,69 @@ Apr 20 20:50:47 loadbalancer.k8s-thw.local haproxy-systemd-wrapper[3056]: haprox
 
 ### Kubernetes Workers
 
-Create three compute instances which will host the Kubernetes worker nodes:
+Create a compute instances which will host the Kubernetes worker nodes. We also clone a master node or a loadbalancer VM, and change hostname, define ip address.
+
+```
+vmhost$ virsh net-edit k8s-net
+vmhost$ virsh net-destroy k8s-net
+ネットワーク k8s-net は強制停止されました
+
+vmhost$ virsh net-start k8s-net
+ネットワーク k8s-net が起動されました
+
+vmhost$ virsh net-dumpxml k8s-net
+<network>
+  <name>k8s-net</name>
+  <uuid>231ecaaa-88ab-4c38-b955-c91b1dff203b</uuid>
+  <forward dev='eth0' mode='nat'>
+    <nat>
+      <port start='1024' end='65535'/>
+    </nat>
+    <interface dev='eth0'/>
+  </forward>
+  <bridge name='virbr1' stp='on' delay='0'/>
+  <mac address='52:54:00:06:ec:15'/>
+  <domain name='k8s-thw.local'/>
+  <dns>
+    <host ip='192.168.111.150'>
+      <hostname>master00.k8s-thw.local</hostname>
+    </host>
+    <host ip='192.168.111.135'>
+      <hostname>master01.k8s-thw.local</hostname>
+    </host>
+    <host ip='192.168.111.147'>
+      <hostname>master02.k8s-thw.local</hostname>
+    </host>
+    <host ip='192.168.111.248'>
+      <hostname>loadbalancer.k8s-thw.local</hostname>
+    </host>
+	<!-- append from here -->
+    <host ip='192.168.111.98'>
+      <hostname>worker00.k8s-thw.local</hostname>
+    </host>
+	<!-- append to here -->
+  </dns>
+  <ip address='192.168.111.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.111.8' end='192.168.111.254'/>
+      <host mac='52:54:00:5e:53:fb' name='master00.k8s-thw.local' ip='192.168.111.150'/>
+      <host mac='52:54:00:b5:06:ff' name='master01.k8s-thw.local' ip='192.168.111.135'/>
+      <host mac='52:54:00:bb:7b:85' name='master02.k8s-thw.local' ip='192.168.111.147'/>
+      <host mac='52:54:00:5f:a2:ef' name='loadbalancer.k8s-thw.local' ip='192.168.111.248'/>
+      <host mac='52:54:00:bf:ca:b4' name='worker00.k8s-thw.local' ip='192.168.111.98'/> <!-- append this line -->
+    </dhcp>
+  </ip>
+</network>
+
+vmhost$ virsh shutdown worker00
+vmhost$ virsh start worker00
+vmhost$ virsh net-dhcp-leases k8s-net
+ Expiry Time          MAC アドレス   Protocol  IP address                Hostname        Client ID or DUID
+-------------------------------------------------------------------------------------------------------------------
+ 2020-04-23 21:50:12  52:54:00:bf:ca:b4  ipv4      192.168.111.98/24         worker00        -
+
+
+```
 
 > The Kubernetes cluster CIDR range is defined by the Controller Manager's `--cluster-cidr` flag. In this tutorial the cluster CIDR range will be set to `10.200.0.0/16`, which supports 254 subnets.
 
@@ -396,17 +458,15 @@ List the compute instances:
 > output
 
 ```
-+--------------+--------+-----------------+------------------------------------+-------+---------+--------+
-|     Name     | Status |       Ips       |               Source               |  Plan | Profile | Report |
-+--------------+--------+-----------------+------------------------------------+-------+---------+--------+
-| loadbalancer |   up   |  192.168.111.68 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   master00   |   up   |  192.168.111.72 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   master01   |   up   | 192.168.111.173 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   master02   |   up   | 192.168.111.230 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   worker00   |   up   | 192.168.111.198 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   worker01   |   up   | 192.168.111.253 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   worker02   |   up   | 192.168.111.158 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-+--------------+--------+-----------------+------------------------------------+-------+---------+--------+
++--------------+--------+-----------------+--------+------+---------+--------+
+|     Name     | Status |       Ips       | Source | Plan | Profile | Report |
++--------------+--------+-----------------+--------+------+---------+--------+
+| loadbalancer |   up   | 192.168.111.248 |        |      |         |        |
+|   master00   |   up   | 192.168.111.150 |        |      |         |        |
+|   master01   |   up   | 192.168.111.135 |        |      |         |        |
+|   master02   |   up   | 192.168.111.147 |        |      |         |        |
+|   worker00   |   up   |  192.168.111.98 |        |      |         |        |
++--------------+--------+-----------------+--------+------+---------+--------+
 ```
 
 ## DNS Verification
@@ -414,52 +474,105 @@ List the compute instances:
 Once all the instances are deployed, we need to verify that the DNS records are correctly configured before starting the Kubernetes cluster installation. Verify instances are resolved in the baremetal server, note that the records were stored in the /etc/hosts
 
 ```
-getent hosts 192.168.111.68
+getent hosts 192.168.111.248
 ```
 
 Output
 
 ```
-192.168.111.68  loadbalancer loadbalancer.k8s-net
+192.168.111.248  loadbalancer loadbalancer.k8s-net
 ```
 Content of the baremetal server /etc/hosts should be similar to the following:
 
 ```
 127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
 ::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
-192.168.111.68 loadbalancer loadbalancer.k8s-thw.local # KVIRT
-192.168.111.72 master00 master00.k8s-thw.local # KVIRT
-192.168.111.173 master01 master01.k8s-thw.local # KVIRT
-192.168.111.230 master02 master02.k8s-thw.local # KVIRT
-192.168.111.198 worker00 worker00.k8s-thw.local # KVIRT
-192.168.111.253 worker01 worker01.k8s-thw.local # KVIRT
-192.168.111.158 worker02 worker02.k8s-thw.local # KVIRT
+192.168.111.150 master00.k8s-thw.local master00
+192.168.111.135 master01.k8s-thw.local master01
+192.168.111.147 master02.k8s-thw.local master02
+192.168.111.248 loadbalancer.k8s-thw.local loadbalancer
+192.168.111.98  worker00.k8s-thw.local worker00
+
+```
+
+Content of the baremetal server /etc/ansible/hosts:
+
+```
+vmhost$ cat /etc/ansible/hosts
+[master]
+master00.k8s-thw.local
+master01.k8s-thw.local
+master02.k8s-thw.local
+
+[lb]
+loadbalancer.k8s-thw.local
+
+[worker]
+worker00.k8s-thw.local
+
+vmhost$ ansible all -m ping
+master00.k8s-thw.local | SUCCESS => {
+    "ansible_facts": {
+        "discovered_interpreter_python": "/usr/bin/python"
+    },
+    "changed": false,
+    "ping": "pong"
+}
+worker00.k8s-thw.local | SUCCESS => {
+    "ansible_facts": {
+        "discovered_interpreter_python": "/usr/bin/python"
+    },
+    "changed": false,
+    "ping": "pong"
+}
+loadbalancer.k8s-thw.local | SUCCESS => {
+    "ansible_facts": {
+        "discovered_interpreter_python": "/usr/bin/python"
+    },
+    "changed": false,
+    "ping": "pong"
+}
+master02.k8s-thw.local | SUCCESS => {
+    "ansible_facts": {
+        "discovered_interpreter_python": "/usr/bin/python"
+    },
+    "changed": false,
+    "ping": "pong"
+}
+master01.k8s-thw.local | SUCCESS => {
+    "ansible_facts": {
+        "discovered_interpreter_python": "/usr/bin/python"
+    },
+    "changed": false,
+    "ping": "pong"
+}
 ```
 
 Finally, verify that each instance is able to resolve another instance hostname. As shown below, master01 is able to resolved loadbalancer hostname:
 
 ```
-kcli ssh master01 ping loadbalancer
+vmhost$ ssh master01 ping -c 3 loadbalancer
 ```
 
 Output expected:
 
 ```
-Warning: Permanently added '192.168.111.173' (ECDSA) to the list of known hosts.
-PING loadbalancer.k8s-thw.local (192.168.111.68) 56(84) bytes of data.
-64 bytes from loadbalancer.k8s-thw.local (192.168.111.68): icmp_seq=1 ttl=64 time=0.370 ms
-64 bytes from loadbalancer.k8s-thw.local (192.168.111.68): icmp_seq=2 ttl=64 time=0.280 ms
+PING loadbalancer.k8s-thw.local (192.168.111.248) 56(84) bytes of data.
+64 bytes from loadbalancer.k8s-thw.local (192.168.111.248): icmp_seq=1 ttl=64 time=0.192 ms
+64 bytes from loadbalancer.k8s-thw.local (192.168.111.248): icmp_seq=2 ttl=64 time=0.255 ms
+64 bytes from loadbalancer.k8s-thw.local (192.168.111.248): icmp_seq=3 ttl=64 time=0.232 ms
+
+--- loadbalancer.k8s-thw.local ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2000ms
+rtt min/avg/max/mdev = 0.192/0.226/0.255/0.028 ms
 ```
 
-## Reboot
+## update pacakges 
 
-Finally, since all packages were updated during the bootstrap of the instance. we must reboot to run the latest ones
+Finally, we update all packages on all hosts.
 
 ```
-for node in loadbalancer master00 master01 master02 worker00 worker01 worker02
-do
-	kcli restart vm $node
-done
+$ ansible all -a "sudo yum -y update"
 ```
 
 
