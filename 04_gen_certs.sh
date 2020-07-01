@@ -1,5 +1,7 @@
 #!/bin/bash
 
+. ./config
+
 mkdir -p ./certs/newcerts
 cp openssl.cnf ./certs
 cd certs
@@ -8,13 +10,6 @@ if [ ! -f serial ]; then
     echo "00" > serial
 fi
 
-
-DOMAIN="k8s-thw.local"
-SUBJECT_BASE="/C=JP/ST=Osaka/O=TenForward"
-KUBERNETES_BAREMETAL_ADDRESS=172.16.43.185
-KUBERNETES_HOSTNAMES=(kubernetes kubernetes.default kubernetes.default.svc kubernetes.default.svc.cluster kubernetes.svc.cluster.local)
-KUBERNETES_IPS=(248 150 135 147 98)
-WORKERS=(worker00)
 REQ_COMMAND="openssl req -new -newkey rsa:4096 -config ./openssl.cnf -nodes"
 CA_COMMAND="openssl ca -config ./openssl.cnf"
 
@@ -22,7 +17,7 @@ CA_COMMAND="openssl ca -config ./openssl.cnf"
 echo -n "Generating Certificate Authority: "
 SUBJECT="${SUBJECT_BASE}/CN=TenForward OreOre CA"
 KEY=ca-key.pem
-CERT=ca.pem
+CERT=${CA_CERTS}
 if [ ! -f $KEY -o ! -f $CERT ]; then
     openssl req -new -newkey rsa:4096 \
 	-x509 -days 365 \
@@ -99,9 +94,9 @@ fi
 # Kube proxy
 echo -n "Generating Kube Proxy Client Certificate: "
 SUBJECT="${SUBJECT_BASE}/CN=system:kube-proxy"
-KEY=kube-kube-proxy-key.pem
-REQ=kube-kube-proxy.req
-CERT=kube-kube-proxy.pem
+KEY=kube-proxy-key.pem
+REQ=kube-proxy.req
+CERT=kube-proxy.pem
 if [ ! -f $KEY -o ! -f $CERT ]; then
     $REQ_COMMAND \
 	-keyout $KEY \

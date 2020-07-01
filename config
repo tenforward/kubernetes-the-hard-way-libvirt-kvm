@@ -1,0 +1,12 @@
+DOMAIN="k8s-thw.local"
+SUBJECT_BASE="/C=JP/ST=Osaka/O=TenForward"
+KUBERNETES_BAREMETAL_ADDRESS=172.16.43.185
+KUBERNETES_HOSTNAMES=(kubernetes kubernetes.default kubernetes.default.svc kubernetes.default.svc.cluster kubernetes.svc.cluster.local)
+KUBERNETES_IPS=(248 150 135 147 98)
+WORKERS=("worker00")
+MASTERS=("master00" "master01" "master02")
+
+LOADBALANCER_IP="192.168.111.248"
+KUBERNETES_PUBLIC_ADDRESS=$LOADBALANCER_IP
+
+CA_CERTS=ca.pem

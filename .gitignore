@@ -48,3 +48,6 @@ service-account.csr
 service-account.pem
 service-account-csr.json
 certs/
+worker00.kubeconfig
+worker01.kubeconfig
+worker02.kubeconfig
